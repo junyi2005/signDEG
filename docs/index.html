@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SignDino: Self-Supervised Sign Language Representation Learning via Temporal-Axis Self-Distillation</title>
-<meta name="description" content="SignDino moves the DINOv3 student-teacher recipe from the spatial domain of image crops to the temporal domain of tracked sign streams.">
-<meta property="og:title" content="SignDino: Temporal-Axis Self-Distillation for Sign Language">
-<meta property="og:description" content="Self-supervised sign language representation learning. New state of the art on How2Sign, OpenASL, ASL Citizen, Sem-Lex, WLASL2000 and ASL-STEM-Wiki.">
-<meta property="og:image" content="static/insight.png">
+<title>SignDEG: DINO Eats Geometry</title>
+<meta name="description" content="SignDEG uses articulated hand geometry as a pre-training target for a temporal appearance encoder that needs only video at inference.">
+<meta property="og:title" content="SignDEG: Self-Supervised Sign Representations that Absorb Articulated Hand Geometry">
+<meta property="og:description" content="Geometric latent prediction and geometric relation transfer from a frozen hand reconstruction model, learned jointly with temporal self-distillation; the hand model is removed at inference.">
+<meta property="og:image" content="static/insight_geo.png">
 <meta property="og:type" content="website">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#128075;</text></svg>">
 <style>
@@ -196,25 +196,30 @@
   footer { padding: 34px 0 60px; color: var(--fg-faint); font-size: 14px; text-align: center; }
   footer a { color: var(--fg-muted); }
 </style>
+
 </head>
 <body>
 
 <header>
   <div class="wrap">
-    <h1><span class="name">SignDino</span></h1>
-    <p class="subtitle">Self-Supervised Sign Language Representation Learning<br>via Temporal-Axis Self-Distillation</p>
+    <h1><span class="name">SignDEG</span></h1>
+    <p class="subtitle">DINO Eats Geometry: Self-Supervised Sign Representations<br>that Absorb Articulated Hand Geometry</p>
 
     <p class="authors">
-      Junyi Hu &nbsp;·&nbsp; Zhewen He &nbsp;·&nbsp; Haomian Huang &nbsp;·&nbsp;
-      Zhenhua Li &nbsp;·&nbsp; Zhifei Li &nbsp;·&nbsp; Yi Fang<sup>†</sup>
+      Junyi&nbsp;Hu &nbsp;·&nbsp; Zhewen&nbsp;He &nbsp;·&nbsp; Haomian&nbsp;Huang &nbsp;·&nbsp; Zhenhua&nbsp;Li &nbsp;·&nbsp;
+      Shuaihang&nbsp;Yuan &nbsp;·&nbsp; Zhifei&nbsp;Li &nbsp;·&nbsp; Yi&nbsp;Fang<sup>†</sup>
     </p>
     <p class="affil">New York University Abu Dhabi</p>
     <p class="corr"><sup>†</sup> corresponding author &nbsp;·&nbsp; <a href="mailto:jh10472@nyu.edu">jh10472@nyu.edu</a></p>
 
     <nav class="links">
-      <a class="btn" href="signdino.pdf">
+      <a class="btn" href="https://arxiv.org/abs/2609.06296">
         <svg viewBox="0 0 16 16"><path d="M4 1h5l3 3v11H4V1zm5 1v3h3"/></svg>
-        Paper (PDF)
+        Paper (arXiv)
+      </a>
+      <a class="btn ghost" href="signdeg.pdf">
+        <svg viewBox="0 0 16 16"><path d="M4 1h5l3 3v11H4V1zm5 1v3h3"/></svg>
+        PDF
       </a>
       <a class="btn ghost" href="https://github.com/junyi2005/signdino">
         <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
@@ -232,111 +237,105 @@
 
 <section>
   <figure>
-    <img src="static/insight.png" alt="Left: image DINOv3 samples spatial global and local crops inside a single image. Right: SignDino samples temporal global and local crops along the tracked left-hand, right-hand and face rows of a single anatomical stream.">
-    <figcaption><b>The local–global distillation game, moved from image space to the time axis.</b>
-      Image DINOv3 (left) samples spatial global and local crops inside one image. SignDino (right)
-      samples <em>temporal</em> global (<code>T<sub>g</sub> ∈ [64, 96]</code>) and local
-      (<code>T<sub>l</sub> ∈ [10, 32]</code>) crops along the tracked hand and face rows of a single
-      anatomical stream, with iBOT masks on a few frame slots inside the local crop.</figcaption>
+    <img src="static/insight_geo.png" alt="Three panels: (a) image DINO with global and local crops of one frame; (b) temporal self-distillation with long and short crops of one tracked hand stream and masked frames; (c) SignDEG adds per-frame WiLoR geometry targets predicted by the student (GLP) and relations to frames of other videos (GRT).">
+    <figcaption><b>From spatial to temporal self-distillation to SignDEG.</b>
+      (a) Image DINO: a student matches an EMA teacher across global and local crops of one frame.
+      (b) Temporal self-distillation plays the same game on long and short temporal crops of one tracked
+      articulator stream, with some frames masked; in both, the target is the teacher's own appearance feature.
+      (c) During pre-training, SignDEG also asks the student to predict, at every frame including masked ones,
+      the geometry that a frozen hand reconstruction model (WiLoR) assigns to the crop (GLP), and to transfer
+      geometric relations between frames of different videos (GRT). WiLoR is removed at inference.</figcaption>
   </figure>
 </section>
 
 <section id="abstract">
   <h2>Abstract</h2>
-  <p class="lead">Self-supervised vision learns structure by playing a local–global game across the
-    <em>spatial</em> axis of an image: a crop and the whole picture are asked to agree. Structured motion has
-    an axis of its own, and the same game should be playable along it — where the counterpart of a local crop
-    is not another view of the same frame, but a shorter temporal view of the same tracked part.</p>
-  <p>We introduce <b>SignDino</b>, which moves the DINOv3 student–teacher recipe from the spatial domain of
-    image crops to the temporal domain of tracked streams. Two properties of a moving body drive the design,
-    and neither is specific to sign: motion is produced by a small set of anatomically distinct parts, and
-    meaning lives in how those parts are organised over time. Each video is therefore decomposed into
-    left-hand, right-hand and face streams by a detector-first YOLOv8n + ByteTrack pipeline; a
-    <em class="term">frozen</em> DINOv3 ViT-B/16 embeds each per-frame crop once; and the only trained
-    components are lightweight temporal Transformers forming the student and EMA teacher.</p>
-  <p>Every term in the objective — temporal DINO self-distillation, iBOT-style masked-frame prediction, KoLeo
-    feature spreading, Gram anchoring of the frame-to-frame similarity structure — is inherited unchanged from
-    image self-supervision. What changed is the axis the local–global game is played on. Strong image-level
-    primitives stay fixed and the model learns only how articulator states evolve across time. Sign language
-    is where we evaluate rather than what the method was built to fit: across sign-to-English translation,
-    isolated sign recognition and fingerspelling detection, SignDino provides a strong public self-supervised
-    representation and is competitive with or ahead of the state of the art under matched downstream
-    evaluation — and the phonological probe, where all sixteen ASL-Lex features improve, is the result that
-    says what the representation actually learned.</p>
+  <p class="lead">What a hand expresses lies largely in its articulated state: which fingers are selected,
+    how they bend, how the palm is oriented. Encoders that learn from appearance alone see this state only
+    indirectly, because appearance similarity also follows viewpoint and the person in the frame. Hand
+    reconstruction models estimate the articulated state explicitly, but running one at deployment adds a
+    second model to every video. SignDEG uses that geometry only as a pre-training target.</p>
+  <p>Frozen DINOv3 features of tracked hands and faces feed per-stream temporal Transformers trained by
+    temporal self-distillation. <em class="term">Geometric latent prediction</em> (GLP) supervises an
+    intermediate block with WiLoR latents, MANO articulation and 3D joints, including at masked frames.
+    <em class="term">Geometric relation transfer</em> (GRT) matches cross-video frame-similarity distributions at
+    the final block. Both objectives are learned jointly with self-distillation; WiLoR and the geometry heads are
+    then discarded, so the encoder runs on video alone.</p>
+  <p>We evaluate on American Sign Language. Under the SHuBERT public-data evaluation protocol, SignDEG
+    reaches 17.9/24.5 BLEU-4 on How2Sign/OpenASL, compared with 16.2/23.2 for SHuBERT. Rank-1 adaptation
+    improves ASL Citizen and Sem-Lex recognition by 0.02 Recall@1 each, and phonological classification
+    improves across 16 attributes. Removing GRT while retaining GLP reduces How2Sign BLEU-4 by 1.4 and ASL
+    Citizen Recall@1 by 0.034.</p>
 
   <div class="pillars">
     <div class="pillar">
       <span class="n">01</span>
-      <h4>Temporal-axis DINO</h4>
-      <p>Per-frame articulator tokens replace spatial patch tokens; multi-temporal-crop replaces
-        multi-spatial-crop; iBOT masks frames rather than patches.</p>
+      <h4>Geometric latent prediction</h4>
+      <p>Block 4 of the student predicts the WiLoR latent, MANO articulation and 3D joints of every frame,
+        masked frames included, weighted by a per-frame reliability score.</p>
     </div>
     <div class="pillar">
       <span class="n">02</span>
-      <h4>Three anatomical streams</h4>
-      <p>Left hand, right hand and face are encoded independently over time and fused only at the
-        downstream head, so each stream learns its own dynamics.</p>
+      <h4>Geometric relation transfer</h4>
+      <p>At the last block, the student's similarity distribution over frames of other videos is matched to
+        the one induced by the geometric targets.</p>
     </div>
     <div class="pillar">
       <span class="n">03</span>
-      <h4>Detector-first crops</h4>
-      <p>YOLOv8n + ByteTrack recovers hands that per-frame detection misses under motion blur and
-        self-occlusion, instead of relying on pose-driven crops.</p>
+      <h4>Video-only inference</h4>
+      <p>The deployed encoders are the EMA teachers on DINOv3 features; the hand reconstruction model and
+        every geometry head are removed.</p>
     </div>
   </div>
 </section>
 
 <section id="method">
   <h2>Method</h2>
-  <p>SignDino is three independently trained per-stream SSL encoders sharing one upstream
-    anatomical-crop pipeline. A frozen DINOv3 ViT-B/16 turns every per-frame crop into a 768-d CLS
-    vector once, and the vectors are cached; the student and teacher are small temporal Transformers
-    on top of that cache. Only <b>≈30M parameters</b> ever receive an SSL gradient, and the image
-    backbone receives none.</p>
+  <p>A YOLOv8n detector and ByteTrack follow the left hand, right hand and face of each video, and a frozen
+    DINOv3 ViT-B/16 maps every crop to its 768-d class token once. Each stream has its own 10.8M-parameter
+    temporal Transformer (6 blocks, width 384), trained by self-distillation between a student and its EMA
+    teacher. The two hand streams additionally receive the geometric objectives.</p>
 
   <figure>
-    <img src="static/pipeline.png" alt="SignDino pipeline: video to YOLOv8n plus ByteTrack to per-frame anatomical streams, then a frozen DINOv3 encoder to per-frame embeddings, then per-stream temporal SSL, then downstream heads.">
-    <figcaption><b>Full pipeline.</b> Each source video passes through the detector-tracker, yielding
-      synchronised per-frame left-hand, right-hand and face streams. A frozen DINOv3 ViT-B/16 encodes
-      every crop into a 768-d CLS token, giving three per-frame embedding sequences that each feed one
-      independent temporal SSL trainer. The stage-2 teachers become the per-stream sign encoders that
-      the translation, ISLR and fingerspelling heads consume as fused per-frame features.</figcaption>
+    <img src="static/pipeline_geo.png" alt="SignDEG overview: detector and tracker produce left-hand, right-hand and face streams; a frozen DINOv3 embeds every crop; a temporal student and EMA teacher are trained per stream; during pre-training a frozen WiLoR supplies targets for GLP at block 4 and GRT at block 6; at inference the EMA teachers run on DINOv3 features alone.">
+    <figcaption><b>Overview.</b> Top: a detector and tracker extract left-hand, right-hand and face crop
+      streams. Middle (right to left): a frozen DINOv3 embeds every crop, and a temporal student and its EMA
+      teacher are trained per stream by temporal self-distillation. Bottom right: during pre-training only, a
+      frozen hand reconstruction model supplies per-frame geometric targets for the hand streams; the student
+      predicts them from block 4, including at masked frames (GLP), and aligns its cross-video frame
+      similarities at block 6 with geometric similarities (GRT). Bottom left: at inference, the EMA teachers run
+      on DINOv3 features alone.</figcaption>
   </figure>
 
-  <h3>The temporal student–teacher game</h3>
-  <p>The teacher sees only long temporal crops of a stream; the student sees both long and short
-    crops, with a random fraction of frame positions replaced by a learnable <code>[MASK]</code>
-    token. Stage 1 combines the crop-level DINO cross-entropy, the frame-level iBOT cross-entropy and
-    the DKoleo spreading term. Stage 2 freezes a snapshot of the teacher as a <em class="term">Gram
-    teacher</em> and adds a loss that matches the student's frame-to-frame similarity matrix to the
-    snapshot's — preserving which <em>frames</em> of a clip are alike, which is the structure that
-    fingerspelling and continuous translation rely on.</p>
+  <h3>Temporal self-distillation</h3>
+  <p>Each sample draws two long (global) and several short (local) temporal crops. The teacher sees the
+    global crops; the student sees all crops, with a random subset of frames in its global crops replaced by a
+    learned mask embedding. The objective combines a crop-level DINO cross-entropy, its frame-level iBOT
+    counterpart at masked frames, and a KoLeo regulariser; teacher distributions are normalised by
+    Sinkhorn–Knopp iterations.</p>
+
+  <h3>Geometric targets and reliability</h3>
+  <p>For every available hand crop, a frozen WiLoR supplies the geometric latent <code>u</code> (the mean of
+    its 16 MANO pose-query tokens after backbone block 23, standardised), the 15 local finger-joint rotations
+    <code>θ</code> in 6D, and the wrist-relative 3D joints <code>J</code>. Per-frame regressors fail on blurred
+    and interacting hands, and such failures appear as abrupt jumps in <code>θ</code>; each frame is therefore
+    weighted by the detector score, tracker state, WiLoR validity and a temporal-smoothness term.</p>
 
   <figure>
-    <img src="static/student_teacher.png" alt="Diagram of the temporal student/teacher game: global and local crops, EMA teacher with Sinkhorn-Knopp, student with softmax, stage 1 losses and stage 2 Gram anchoring.">
-    <figcaption><b>Temporal student/teacher game for one anatomical stream.</b> The frozen DINOv3
-      backbone supplies per-frame embeddings once; the SSL game runs entirely on top of them. The
-      teacher is the EMA of the student.</figcaption>
-  </figure>
-
-  <h3>Why the detector-tracker matters</h3>
-  <p>Single-frame detection drops hands under fast motion and self-occlusion. ByteTrack's Kalman fill
-    recovers them, reaching ~95% per-frame hand detection on How2Sign. Removing it costs
-    <b>−1.5 BLEU</b> on How2Sign and <b>−0.094 R@1</b> on ASL Citizen.</p>
-
-  <figure>
-    <img src="static/yolotrack.png" alt="Six OpenASL frames shown twice: YOLOv8n alone on top misses hands that YOLOv8n plus ByteTrack recovers on the bottom.">
-    <figcaption><b>Detector-first crops recover hands YOLOv8n alone misses.</b> Same frame under
-      YOLOv8n only (top) and YOLOv8n + ByteTrack with Kalman fill (bottom). Green boxes are active
-      detections; magenta are tracker predictions for hands the detector missed at that frame.</figcaption>
+    <img src="static/student_teacher_geo.png" alt="Training of one hand stream: global and local temporal crops of cached DINOv3 features, EMA teacher on global crops, student on all crops with masked frames, DINO, iBOT and KoLeo terms, GLP at block 4 and GRT at block 6 with targets from frozen WiLoR and reliability weighting.">
+    <figcaption><b>Training of one hand stream.</b> The EMA teacher sees the global crops, and the student sees
+      all crops with some frames of its global crops masked. GLP reads student frame tokens at block 4 and GRT
+      reads them at block 6, using targets from frozen WiLoR with reliability weighting applied to each loss;
+      both losses are added from the first step. The face stream uses self-distillation alone.</figcaption>
   </figure>
 </section>
 
 <section id="results">
   <h2>Results</h2>
-  <p>Everything below follows the SHuBERT public-data protocol: the same 984 source hours of
-    decontaminated YouTube-ASL, the same downstream datasets, task heads, schedules and metrics. Only
-    the upstream representation changes.</p>
+  <p>All results follow the SHuBERT public-data evaluation suite: the ≈984-hour YouTube-ASL source split with
+    OpenASL evaluation clips replaced by non-overlapping YouTube-SL-25 videos, and SHuBERT's target splits, task
+    heads, metrics and downstream schedules. SignDEG entries are means over three seeds; baselines are
+    published results.</p>
 
   <h3>Sign language translation</h3>
   <div class="tablewrap">
@@ -354,12 +353,12 @@
         <tr><td>SSVP-SLT</td><td>1054</td><td>15.5</td><td>49.6</td><td>—</td><td>—</td></tr>
         <tr><td>Uni-Sign</td><td>984</td><td>14.9</td><td>49.4</td><td>23.1</td><td>—</td></tr>
         <tr><td>SHuBERT</td><td>984</td><td>16.2</td><td>49.9</td><td>23.2</td><td>4.7</td></tr>
-        <tr class="oursrow"><td><b>SignDino</b> (frozen)</td><td>984</td><td class="ours">16.8</td><td class="ours">50.4</td><td class="ours">23.6</td><td class="ours">4.9</td></tr>
-        <tr class="oursrow"><td><b>SignDino</b> (live fine-tune)</td><td>984</td><td class="ours">17.9</td><td class="ours">51.3</td><td class="ours">24.5</td><td class="ours">5.3</td></tr>
+        <tr class="oursrow"><td><b>SignDEG</b> (frozen encoders)</td><td>984</td><td class="ours">16.8</td><td class="ours">50.4</td><td class="ours">23.6</td><td class="ours">4.9</td></tr>
+        <tr class="oursrow"><td><b>SignDEG</b> (live fine-tune)</td><td>984</td><td class="ours">17.9</td><td class="ours">51.3</td><td class="ours">24.5</td><td class="ours">5.3</td></tr>
       </tbody>
-      <caption>Corpus BLEU-4 and BLEURT-20. FLEURS-ASL is zero-shot. The <b>frozen</b> row already
-        beats the previous live-fine-tuned state of the art, so the temporal-axis features carry the
-        signal without any encoder adaptation.</caption>
+      <caption>BLEU-4 (SacreBLEU) and BLEURT-20 with a ByT5-Base decoder. FLEURS-ASL is scored zero-shot after
+        the source stage. Frozen/live denote whether the temporal encoders are updated; WiLoR and the geometry
+        heads are absent at test time.</caption>
     </table>
   </div>
 
@@ -378,72 +377,108 @@
         <tr><td>SignCLIP</td><td>217M</td><td>0.60</td><td>0.30</td><td>—</td><td>—</td></tr>
         <tr><td>Uni-Sign</td><td>580M</td><td>—</td><td>—</td><td>63.52</td><td>—</td></tr>
         <tr><td>SHuBERT (rank-1 LoRA)</td><td>0.17M</td><td>0.65</td><td>0.54</td><td>60.90</td><td>0.40</td></tr>
-        <tr class="oursrow"><td><b>SignDino</b> (rank-1 LoRA)</td><td>0.17M</td><td class="ours">0.67</td><td class="ours">0.56</td><td class="ours">66.9</td><td class="ours">0.41</td></tr>
-        <tr class="oursrow"><td><b>SignDino</b> (full fine-tune)</td><td>all</td><td class="ours">0.704</td><td class="ours">0.593</td><td class="ours">68.5</td><td class="ours">0.43</td></tr>
+        <tr class="oursrow"><td><b>SignDEG</b> (rank-1 LoRA)</td><td>0.11M</td><td class="ours">0.67</td><td class="ours">0.56</td><td class="ours">66.9</td><td class="ours">0.41</td></tr>
+        <tr class="oursrow"><td><b>SignDEG</b> (full fine-tune)</td><td>all</td><td class="ours">0.704</td><td class="ours">0.593</td><td class="ours">68.5</td><td class="ours">0.43</td></tr>
       </tbody>
-      <caption>At the matched 0.17M-parameter LoRA operating point SignDino beats Uni-Sign on
-        WLASL2000 by +3.3 P-I with roughly one one-thousandth of its trainable parameters.</caption>
+      <caption>Recall@1 on ASL Citizen and Sem-Lex, per-instance top-1 on WLASL2000, and mean interval-IoU for
+        fingerspelling detection on ASL-STEM-Wiki.</caption>
     </table>
   </div>
 
-  <h3>Phonological feature probing</h3>
-  <p>Sixteen ASL-Lex 2.0 feature classifiers, trained on frozen features, ask whether the
-    representation preserves <em>sub-lexical</em> structure rather than only whole-sign identity.
-    SignDino improves on every one of the sixteen features, with the largest gains on the temporally
-    articulated ones — path movement, wrist twist, repeated movement.</p>
+  <h3>What the geometric objectives contribute</h3>
+  <p>The controls below hold the image backbone, crops, encoder capacity, 984-hour source split, 450K updates
+    and downstream schedules fixed, and change only the pre-training objective.</p>
   <div class="tablewrap">
     <table>
-      <thead><tr><th>Average over 16 features</th><th>Sem-Lex R@1</th><th>ASL Citizen R@1</th></tr></thead>
+      <thead><tr><th>Objective / placement</th><th>How2Sign BLEU</th><th>ASL Citizen R@1</th></tr></thead>
+      <tbody>
+        <tr><td>Self-distillation (SD) only</td><td>15.6</td><td>0.642</td></tr>
+        <tr><td>SD + GLP</td><td>16.5</td><td>0.670</td></tr>
+        <tr><td>SD + GRT</td><td>16.4</td><td>0.665</td></tr>
+        <tr class="oursrow"><td><b>SD + GLP + GRT</b> (GLP at block 4)</td><td class="ours">17.9</td><td class="ours">0.704</td></tr>
+        <tr><td>SD + GLP + GRT (GLP at block 6)</td><td>17.2</td><td>0.690</td></tr>
+      </tbody>
+      <caption>How2Sign uses live translation fine-tuning; ASL Citizen uses full temporal fine-tuning.</caption>
+    </table>
+  </div>
+
+  <p>A frozen retrieval diagnostic uses human handshape labels instead of WiLoR: ASL Citizen queries retrieve
+    training clips while the query signer and the query lexical sign are excluded.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Frozen representation</th><th>Handshape P@5</th><th>Articulation R²</th></tr></thead>
+      <tbody>
+        <tr><td>Raw DINOv3</td><td>0.41</td><td>0.44</td></tr>
+        <tr><td>SD only</td><td>0.49</td><td>0.48</td></tr>
+        <tr><td>SD + GLP</td><td>0.55</td><td>0.54</td></tr>
+        <tr class="oursrow"><td><b>Full SignDEG</b></td><td class="ours">0.61</td><td class="ours">0.56</td></tr>
+      </tbody>
+      <caption>Handshape P@5 uses ASL-Lex 2.0 dominant-handshape labels; articulation R² is a ridge probe
+        predicting WiLoR estimates on How2Sign.</caption>
+    </table>
+  </div>
+
+  <h3>Phonological feature classification</h3>
+  <p>Sixteen classifiers for ASL-Lex 2.0 categories test whether the representation preserves sub-lexical
+    structure. On Sem-Lex, Handshape improves from 62.93 to 71.16, Selected Fingers from 79.53 to 89.94, and
+    Spread from 79.42 to 90.99. These labels are independent of WiLoR.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Mean over 16 features</th><th>Sem-Lex R@1</th><th>ASL Citizen R@1</th></tr></thead>
       <tbody>
         <tr><td>SHuBERT</td><td>79.38</td><td>85.02</td></tr>
-        <tr class="oursrow"><td><b>SignDino</b></td><td class="ours">87.64 <span class="delta">+8.26</span></td><td class="ours">91.85 <span class="delta">+6.83</span></td></tr>
+        <tr class="oursrow"><td><b>SignDEG</b></td><td class="ours">87.64 <span class="delta">+8.26</span></td><td class="ours">91.85 <span class="delta">+6.83</span></td></tr>
       </tbody>
     </table>
   </div>
 
-  <h3>What the encoder learns</h3>
+  <h3>Feature clusters</h3>
   <figure>
-    <img src="static/clusters_rh.png" alt="Five k-means clusters of right-hand features, each row showing ten nearest-to-centroid crops sharing a handshape across different signers and backgrounds.">
-    <figcaption><b>Zero-shot clusters on held-out frames.</b> Each hand stream surfaces
-      <em>handshape</em> clusters — pointing, spread fingers, thumb-up, two-hand contact — that recur
-      across many signers, backgrounds and skin tones, evidence that the encoder internalises
-      articulator structure rather than identity or background.</figcaption>
+    <img src="static/clusters_rh.png" alt="Five k-means clusters of right-hand SignDEG features on held-out How2Sign and OpenASL frames, each row showing ten nearest-to-centroid crops.">
+    <figcaption><b>Right-hand clusters on held-out How2Sign and OpenASL frames</b> (k-means, K = 200; each row
+      shows 10 nearest-to-centroid members). Clusters group pointing / extended-index handshapes, the
+      thumb-up / closed-fist family, and open-palm / spread-fingers gestures across backgrounds.</figcaption>
   </figure>
   <figure>
-    <img src="static/signdino_tsne.png" alt="Two t-SNE panels: family-relation nouns cluster centrally with weather nouns far away; perception verbs, motion verbs and sleep occupy distinct regions.">
-    <figcaption><b>Cross-sentence t-SNE after translation fine-tuning.</b> Family-relation nouns
-      concentrate while weather nouns sit far away (left); perception verbs, motion verbs and
-      <i>sleep</i> occupy distinct regions (right).</figcaption>
+    <img src="static/clusters_lh.png" alt="Five k-means clusters of left-hand SignDEG features on held-out How2Sign and OpenASL frames.">
+    <figcaption><b>Left-hand clusters</b> (K = 200). Clusters capture thumb-up / closed-fist handshapes, the
+      spread-fingers (“5”) handshape across backgrounds, mid-motion signing gestures and two-hand contact
+      poses.</figcaption>
+  </figure>
+  <figure>
+    <img src="static/sdeg_tsne.png" alt="t-SNE of SignDEG features after translation training, showing noun and verb neighbourhoods.">
+    <figcaption><b>t-SNE of SignDEG features after translation training.</b> Noun and verb neighbourhoods are
+      descriptive.</figcaption>
   </figure>
 </section>
 
 <section id="code">
   <h2>Code</h2>
-  <p>The full implementation — SSL losses, the temporal encoder, the multi-temporal-crop sampler, the
-    embedding cache, and all three downstream heads — is on
-    <a href="https://github.com/junyi2005/signdino">GitHub</a> under the MIT licence. The YAML configs
-    match the paper's hyperparameter card line by line.</p>
+  <p>The method code — articulator streams and feature extraction, pre-training with GLP and GRT, and the
+    translation, recognition and fingerspelling models — is on
+    <a href="https://github.com/junyi2005/signdino">GitHub</a> under the MIT licence. Configurations follow the
+    paper.</p>
 <pre>git clone https://github.com/junyi2005/signdino.git
 cd signdino &amp;&amp; pip install -r requirements.txt
 
-python smoke_test.py                       # synthetic end-to-end check, no data needed
+# synthetic smoke test, no data needed
+python train.py --config configs/signdeg_hand.yaml --synthetic-smoke --max-steps 20
 
-python preprocess/cache_embeddings.py --crop-root /path/to/CROPS   # one-off frozen-DINOv3 cache
-python train.py --config configs/pretrain.yaml --stream lh --exp-name pretrain_lh   # stage 1
-python train.py --config configs/refine.yaml   --stream lh --exp-name refine_lh \
-    --init-ckpt runs/pretrain_lh/ckpt_e100.pt                                       # stage 2</pre>
-  <p>Datasets and third-party checkpoints (DINOv3, ByT5-Base, BLEURT-20, the YOLOv8n detectors) are
-    not redistributed here; obtain each from its official release under its own terms.</p>
+# pre-training of one hand stream on a FeatureStore (see README)
+torchrun --nproc_per_node 4 train.py --config configs/signdeg_hand.yaml --stream rh \
+    --store /path/to/store_source --output-root runs/ssl</pre>
+  <p>Datasets and third-party models (DINOv3, WiLoR and MANO, ByT5-Base, the YOLOv8n detectors) are not
+    redistributed; obtain each from its official release under its own terms.</p>
 </section>
 
 <section id="citation">
   <h2>Citation</h2>
-<pre>@article{hu2026signdino,
-  title   = {SignDino: Self-Supervised Sign Language Representation Learning
-             via Temporal-Axis Self-Distillation},
+<pre>@article{hu2026signdeg,
+  title   = {{DINO} Eats Geometry: Self-Supervised Sign Representations that Absorb
+             Articulated Hand Geometry},
   author  = {Hu, Junyi and He, Zhewen and Huang, Haomian and Li, Zhenhua and
-             Li, Zhifei and Fang, Yi},
-  journal = {arXiv preprint},
+             Yuan, Shuaihang and Li, Zhifei and Fang, Yi},
+  journal = {arXiv preprint arXiv:2609.06296},
   year    = {2026}
 }</pre>
 </section>

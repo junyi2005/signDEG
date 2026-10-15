@@ -5,6 +5,8 @@
 Junyi Hu, Zhewen He, Haomian Huang, Zhenhua Li, Shuaihang Yuan, Zhifei Li, Yi Fang<sup>†</sup>
 New York University Abu Dhabi · <sup>†</sup>corresponding author · jh10472@nyu.edu
 
+[**Paper (arXiv)**](https://arxiv.org/abs/2609.06296) · [**Project page**](https://junyi2005.github.io/signdino/) · [**BibTeX**](#citation)
+
 ---
 
 This repository is the code of SignDEG. It covers the method end to end: articulator streams and feature
@@ -58,6 +60,7 @@ stores, downstream models).
 | `signdeg/fingerspelling.py` | fingerspelling detection: two-layer Transformer, frame head, interval IoU |
 | `scripts/` | the commands of Section 4 as shell scripts (paths in `scripts/env.sh`) |
 | `requirements.txt` | pinned Python packages |
+| `docs/` | project page |
 
 Run everything from the root of this folder; every Python script prints its options with `--help`.
 
@@ -237,7 +240,7 @@ python signdeg/fingerspelling.py --store $O/stores/store_stemwiki --labels $D/as
              Articulated Hand Geometry},
   author  = {Hu, Junyi and He, Zhewen and Huang, Haomian and Li, Zhenhua and
              Yuan, Shuaihang and Li, Zhifei and Fang, Yi},
-  journal = {arXiv preprint},
+  journal = {arXiv preprint arXiv:2609.06296},
   year    = {2026}
 }
 ```

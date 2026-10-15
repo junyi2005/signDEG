@@ -14,16 +14,17 @@ Inputs to compute_losses:
         'local_valid':    (Nl, B, Tl)
         'local_time':     (Nl, B, Tl)
         'ibot_mask':      (Ng, B, Tg)
+        'geo_w', 'geo_u', 'geo_theta', 'geo_joint': (Ng, B, Tg[, d])  -- hand streams only
+        'geo_video': (Ng, B, Tg) global source-video id, 'geo_frame': (Ng, B, Tg) frame index in that video
     teacher_views: dict with the same keys but only globals
         'global_frames', 'global_valid', 'global_time'
 
-Returns: dict of losses (dino, ibot, dkoleo[, gram]) + dict of teacher EMA
-side effects.
+Returns: dict of losses (dino, ibot, dkoleo[, glp_*, grt]); the EMA teacher is updated by `ema_step`.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, Optional
+from typing import Dict
 
 import torch
 import torch.nn as nn
@@ -33,10 +34,10 @@ from dino import (
     DINOLoss,
     KoLeoLoss,
     iBOTFrameLoss,
-    GramLoss,
     EMAUpdater,
 )
 from .temporal_encoder import TemporalTransformer
+from .geo import GeoConfig, GeoHeads
 
 
 @dataclass
@@ -50,10 +51,10 @@ class SignDinoConfig:
     max_len: int = 256
 
     # heads
-    head_out_dim: int = 8192         # K (DINO prototypes); smaller than 65536 since sign vocab is smaller
-    head_hidden: int = 2048
+    head_out_dim: int = 8192         # K (DINO prototypes)
+    head_hidden: int = 512           # DINO / iBOT heads: D -> 512 -> 256 -> K
     head_bottleneck: int = 256
-    head_layers: int = 3
+    head_layers: int = 2
     head_norm_last: bool = True
 
     # losses
@@ -64,7 +65,7 @@ class SignDinoConfig:
     dkoleo_weight: float = 0.1
     dino_weight: float = 1.0
     ibot_weight: float = 1.0
-    gram_weight: float = 0.0          # 0 in stage 1, e.g. 2.0 in stage 2
+    geo: GeoConfig = field(default_factory=GeoConfig)  # GLP / GRT (training only)
 
 
 class SignTemporalDinoModel(nn.Module):
@@ -109,12 +110,12 @@ class SignTemporalDinoModel(nn.Module):
         self.dino_loss = DINOLoss(out_dim=cfg.head_out_dim, student_temp=cfg.student_temp)
         self.ibot_loss = iBOTFrameLoss(out_dim=cfg.head_out_dim, student_temp=cfg.student_temp)
         self.dkoleo_loss = KoLeoLoss()
-        self.gram_loss = GramLoss()
 
         self.ema = EMAUpdater(self._student_modules(), self._teacher_modules())
 
-        # gram teacher is created externally when entering stage 2
-        self.gram_teacher_encoder: Optional[TemporalTransformer] = None
+        # geometric heads: student-only, not EMA'd, discarded at inference
+        g = cfg.geo
+        self.geo_heads = GeoHeads(g, cfg.embed_dim) if (g.glp_weight > 0 or g.grt_weight > 0) else None
 
     # --------- module groupings (EMA needs identical parameter shapes) -----
     def _student_modules(self) -> nn.Module:
@@ -138,6 +139,7 @@ class SignTemporalDinoModel(nn.Module):
         student_views: Dict[str, torch.Tensor],
         teacher_views: Dict[str, torch.Tensor],
         teacher_temp: float,
+        step: int = 0,
     ) -> Dict[str, torch.Tensor]:
         # ----- teacher forward (global views only) ----------------------
         T_frames = teacher_views["global_frames"]        # (Ng, B, Tg, D)
@@ -169,12 +171,18 @@ class SignTemporalDinoModel(nn.Module):
         s_global_time   = student_views["global_time"]
         ibot_mask = student_views["ibot_mask"]
         Ng_s, B_s, Tg_s, _ = s_global_frames.shape
-        cls_g, patches_g = self.encode_student(
+        use_geo = self.geo_heads is not None and "geo_w" in student_views
+        enc_out = self.student_encoder(
             s_global_frames.reshape(Ng_s * B_s, Tg_s, D_in),
             s_global_valid.reshape(Ng_s * B_s, Tg_s),
+            ibot_mask.reshape(Ng_s * B_s, Tg_s),
             s_global_time.reshape(Ng_s * B_s, Tg_s),
-            frame_mask=ibot_mask.reshape(Ng_s * B_s, Tg_s),
+            tap_layer=self.cfg.geo.tap_layer if use_geo else None,
         )
+        if use_geo:
+            cls_g, patches_g, tap_g = enc_out
+        else:
+            cls_g, patches_g = enc_out
         s_cls_g_logits = self.student_cls_head(cls_g).reshape(Ng_s, B_s, -1)
         s_patch_g_logits = self.student_patch_head(patches_g).reshape(Ng_s, B_s, Tg_s, -1)
 
@@ -221,32 +229,32 @@ class SignTemporalDinoModel(nn.Module):
             "loss_dkoleo": self.cfg.dkoleo_weight * loss_dkoleo,
         }
 
-        # ----- Gram loss (stage 2) --------------------------------------
-        if self.cfg.gram_weight > 0 and self.gram_teacher_encoder is not None:
-            with torch.no_grad():
-                g_cls, g_patches = self.gram_teacher_encoder(
-                    T_frames.reshape(Ng * B, Tg, -1),
-                    T_valid.reshape(Ng * B, Tg),
-                    None,
-                    T_time.reshape(Ng * B, Tg),
-                )
-            # student global patch features (pre-head) reshape -> (Ng*B, Tg, D')
-            student_patches_g = patches_g                          # (Ng*B, Tg, D')
-            loss_gram = self.gram_loss(student_patches_g, g_patches)
-            out["loss_gram"] = self.cfg.gram_weight * loss_gram
+        # ----- geometry absorption (GLP + GRT, hand streams) ------------
+        if use_geo:
+            M = Ng_s * B_s
+            geo = {k: student_views["geo_" + k].reshape(M, Tg_s, -1)
+                   for k in ("u", "theta", "joint") if ("geo_" + k) in student_views}
+            w = student_views["geo_w"].reshape(M, Tg_s) * s_global_valid.reshape(M, Tg_s).float()
+            gc = self.cfg.geo
+            if gc.glp_weight > 0:
+                glp = self.geo_heads.glp(tap_g, geo, w, ibot_mask.reshape(M, Tg_s))
+                for k, v in glp.items():
+                    out["loss_" + k] = gc.glp_weight * v
+            if gc.grt_weight > 0:
+                vid = student_views["geo_video"].reshape(M, Tg_s)
+                frm = student_views["geo_frame"].reshape(M, Tg_s)
+                out["loss_grt"] = gc.grt_weight * self.geo_heads.grt(patches_g, geo, w, vid, frm, step)
 
         out["loss_total"] = sum(out.values())
         return out
 
+    def forward(self, student_views, teacher_views, teacher_temp: float, step: int = 0):
+        """Same as compute_losses; called through forward so that DistributedDataParallel syncs gradients."""
+        return self.compute_losses(student_views, teacher_views, teacher_temp, step)
+
     @torch.no_grad()
     def ema_step(self, momentum: float):
         self.ema.update(momentum)
-
-    def attach_gram_teacher(self, gram_teacher: TemporalTransformer):
-        gram_teacher.eval()
-        for p in gram_teacher.parameters():
-            p.requires_grad_(False)
-        self.gram_teacher_encoder = gram_teacher
 
 
 class _Wrap(nn.Module):

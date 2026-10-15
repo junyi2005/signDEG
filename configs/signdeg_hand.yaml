@@ -1,0 +1,85 @@
+# SignDEG pre-training of a hand stream (lh or rh): temporal self-distillation + GLP + GRT (Eq. total).
+#   torchrun --nproc_per_node 4 train.py --config configs/signdeg_hand.yaml --stream rh --store STORE
+# Values follow Appendix A and Table "pretrain" (4 GPUs x 8 videos, 400K + 50K updates).
+stream: rh
+seed: 0
+
+data:
+  store_root: /path/to/stores/store_source        # source pre-training store (YouTube-ASL split)
+  split: train
+  num_workers: 6
+  pin_memory: true
+
+multi_crop:                 # contiguous temporal crops, lengths in frames at 12.5 fps
+  n_global: 2
+  n_local: 8
+  global_len_min: 32
+  global_len_max: 48
+  local_len_min: 6
+  local_len_max: 16
+  min_valid_frames: 4
+
+ibot:                       # fraction of masked frames in each student global crop
+  mask_min: 0.25
+  mask_max: 0.50
+
+geo:                        # training-only geometric objectives (model/geo.py)
+  target: geometry          # WiLoR targets u, theta, J and reliability w from the store
+  glp_weight: 1.0           # lambda_P
+  grt_weight: 1.0           # lambda_R
+  tap_layer: 4              # l_g
+  u_dim: 1280
+  theta_dim: 90
+  joint_dim: 63
+  alpha_theta: 1.0
+  alpha_joint: 1.0
+  gamma_mask: 2.0           # gamma_m
+  head_hidden: 256          # GLP heads: 384 -> 256 -> d
+  grt_frames: 1024          # N
+  grt_proj_dim: 128         # Q: linear 384 -> 128
+  grt_tau_g: 0.05
+  grt_tau_z: 0.1
+
+model:
+  in_dim: 768               # DINOv3 ViT-B/16 class token
+  embed_dim: 384            # D
+  depth: 6                  # L
+  num_heads: 6
+  mlp_ratio: 4.0
+  dropout: 0.0
+  max_len: 256
+  head_out_dim: 8192        # K prototypes
+  head_hidden: 512          # DINO / iBOT heads: 384 -> 512 -> 256 -> K
+  head_bottleneck: 256
+  head_layers: 2
+  head_norm_last: true
+  student_temp: 0.1
+  teacher_temp: 0.07
+  teacher_temp_start: 0.04
+  sinkhorn_iters: 3
+  dino_weight: 1.0
+  ibot_weight: 1.0
+  dkoleo_weight: 0.1        # lambda_K
+
+train:
+  batch_size_per_gpu: 8     # x 4 GPUs = 32 videos per update
+  min_lr: 1.0e-6
+  grad_clip: 3.0
+  amp: bf16
+  log_every: 50
+  ckpt_every: 10000
+  output_root: runs/ssl
+  segments:                 # all losses active in both segments
+    - steps: 400000
+      base_lr: 5.0e-4
+      warmup_frac: 0.05     # 5% warmup + cosine
+      weight_decay: [0.04, 0.4]
+      ema_momentum: [0.994, 1.0]
+      teacher_temp: [0.04, 0.07]
+      teacher_temp_warmup_frac: 0.3
+    - steps: 50000
+      base_lr: 2.0e-4
+      warmup_frac: 0.01     # 1% warmup + cosine
+      weight_decay: [0.04, 0.4]
+      ema_momentum: [0.999, 1.0]
+      teacher_temp: [0.07, 0.07]

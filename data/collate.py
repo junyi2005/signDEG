@@ -5,8 +5,7 @@ but per-window length is sampled independently in [len_min, len_max].
 Collate therefore pads every global window to a common Tg (= max length
 across the batch's Ng x B global windows) and every local window to a
 common Tl. `valid_mask` is False on padded positions, so attention
-masking, iBOT masking, and Gram-loss masking all transparently ignore
-padding.
+masking and iBOT masking transparently ignore padding.
 
 Produces an iBOT frame mask on the global crops only, with per-crop random
 mask ratio in [ibot_mask_min, ibot_mask_max].
@@ -86,4 +85,9 @@ def multi_crop_collate(
         "ibot_mask": ibot_mask,
         "n_global": Ng,
     }
+    # geometric targets (GLP / GRT): present only when the dataset serves them
+    for k in ("w", "u", "theta", "joint", "video", "frame"):
+        key = f"global_geo_{k}"
+        if key in batch[0]:
+            out[f"geo_{k}"] = _stack_views([s[key] for s in batch], pad_value=0)   # (Ng, B, Tg, *)
     return out

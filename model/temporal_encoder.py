@@ -74,7 +74,8 @@ class TemporalTransformer(nn.Module):
         valid_mask: Optional[torch.Tensor] = None,   # (B, T) bool, True = real frame
         frame_mask: Optional[torch.Tensor] = None,   # (B, T) bool, True = iBOT-masked
         time_indices: Optional[torch.Tensor] = None, # (B, T) int, absolute frame idx
-        return_all_layers: bool = False,             # if True, also return per-layer outputs
+        return_all_layers: bool = False,             # if True, also return the L+1 layer stack (see below)
+        tap_layer: Optional[int] = None,             # if set, also return frame tokens after block `tap_layer` (1-based)
     ):
         B, T, _ = frame_embeds.shape
         assert T <= self.max_len, f"temporal len {T} exceeds max_len {self.max_len}"
@@ -86,6 +87,7 @@ class TemporalTransformer(nn.Module):
             x_in = torch.where(frame_mask.unsqueeze(-1), mask_expand, x_in)
 
         x = self.input_proj(x_in)                                # (B, T, D)
+        stem = x                                                 # layer 0 of the downstream weighted sum
         cls = self.cls_token.expand(B, -1, -1)                   # (B, 1, D)
         x = torch.cat([cls, x], dim=1)                            # (B, T+1, D)
 
@@ -108,14 +110,20 @@ class TemporalTransformer(nn.Module):
             key_padding_mask = None
 
         layer_outputs = []
-        for layer in self.layers:
+        tapped = None
+        for li, layer in enumerate(self.layers, start=1):
             x = layer(x, src_key_padding_mask=key_padding_mask)
-            if return_all_layers:
-                layer_outputs.append(x)
+            if return_all_layers and li < self.depth:
+                layer_outputs.append(x[:, 1:])
+            if tap_layer is not None and li == tap_layer:
+                tapped = x[:, 1:]
         x = self.norm(x)
+        if tap_layer is not None:
+            return x[:, 0], x[:, 1:], tapped
         if return_all_layers:
-            # also include the post-norm final layer in the stack; shape (L+1, B, T+1, D)
-            layer_outputs.append(x)
-            stacked = torch.stack(layer_outputs, dim=0)
+            # frame tokens of the L+1 layers read by downstream heads, shape (L+1, B, T, D):
+            # layer 0 = the projected DINOv3 input (post-stem), layers 1..L-1 = block outputs, layer L = the
+            # final block after the output norm
+            stacked = torch.stack([stem] + layer_outputs + [x[:, 1:]], dim=0)
             return x[:, 0], x[:, 1:], stacked
         return x[:, 0], x[:, 1:]

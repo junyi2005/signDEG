@@ -20,3 +20,7 @@ data/*/
 
 .DS_Store
 .venv/
+
+# external models and third-party code
+weights/
+third_party/

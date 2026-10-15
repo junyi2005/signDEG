@@ -19,8 +19,8 @@ def _build_mlp(nlayers, in_dim, bottleneck_dim, hidden_dim, bias=True):
 class DINOHead(nn.Module):
     """MLP -> L2-normalize -> weight-normalized linear to `out_dim` prototypes.
 
-    out_dim is the number of prototypes K (image DINOv3 uses 65536; for a
-    ~50k sign-word corpus a few thousand is plenty -- see configs).
+    out_dim is the number of prototypes K (image DINOv3 uses 65536; we use
+    8192 -- see configs).
     """
 
     def __init__(self, in_dim, out_dim, nlayers=3, hidden_dim=2048,

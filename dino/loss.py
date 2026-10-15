@@ -1,14 +1,40 @@
-"""DINO / iBOT / KoLeo losses -- single-GPU, modality-agnostic.
+"""DINO / iBOT / KoLeo losses, modality-agnostic (ported from dinov3/loss/*).
 
-Ported from dinov3/loss/* with the distributed all-reduce paths removed.
-Everything here consumes plain tensors, so the same code drives the
-image DINO and the sign-pose DINO unchanged.
+Sinkhorn-Knopp normalises the teacher assignments over the whole (distributed) batch: when
+torch.distributed is initialised, the sums are all-reduced across ranks, as in DINOv3.
 """
-import math
-
 import torch
+import torch.distributed as dist
 import torch.nn.functional as F
 from torch import nn
+
+
+def _all_reduce(x: torch.Tensor) -> torch.Tensor:
+    if dist.is_available() and dist.is_initialized() and dist.get_world_size() > 1:
+        dist.all_reduce(x)
+    return x
+
+
+@torch.no_grad()
+def sinkhorn_knopp(teacher_output: torch.Tensor, teacher_temp: float, n_iterations: int = 3) -> torch.Tensor:
+    """Balanced assignment of teacher logits [N, K] -> probabilities [N, K] (rows sum to 1), with the
+    prototype marginal made uniform over the global batch. Every rank must call it (collectives), also
+    with N = 0 local rows."""
+    Q = torch.exp(teacher_output.float() / teacher_temp).t()   # K x N
+    K = Q.shape[0]
+    N = _all_reduce(torch.tensor([float(Q.shape[1])], device=Q.device))
+    if N.item() == 0:
+        return teacher_output.float().new_zeros(teacher_output.shape)
+    total = _all_reduce(Q.sum().reshape(1))
+    Q /= total
+    for _ in range(n_iterations):
+        rows = _all_reduce(Q.sum(dim=1, keepdim=True))
+        Q /= rows.clamp_min(1e-30)
+        Q /= K
+        Q /= Q.sum(dim=0, keepdim=True).clamp_min(1e-30)
+        Q /= N
+    Q *= N
+    return Q.t()
 
 
 class DINOLoss(nn.Module):
@@ -20,24 +46,8 @@ class DINOLoss(nn.Module):
         self.student_temp = student_temp
         self.out_dim = out_dim
 
-    @torch.no_grad()
     def sinkhorn_knopp_teacher(self, teacher_output, teacher_temp, n_iterations=3):
-        """Balanced assignment of `teacher_output` [N, K] -> probs [N, K].
-
-        Sinkhorn keeps the K prototypes uniformly used across the batch,
-        which is the main thing that stops the student-teacher pair from
-        collapsing to a constant.
-        """
-        Q = torch.exp(teacher_output.float() / teacher_temp).t()  # K x N
-        K, N = Q.shape
-        Q /= Q.sum()
-        for _ in range(n_iterations):
-            Q /= Q.sum(dim=1, keepdim=True)
-            Q /= K
-            Q /= Q.sum(dim=0, keepdim=True)
-            Q /= N
-        Q *= N
-        return Q.t()  # N x K, rows sum to 1
+        return sinkhorn_knopp(teacher_output, teacher_temp, n_iterations)
 
     def forward(self, student_logits, teacher_probs, ignore_diagonal=False):
         """student_logits [S, B, K], teacher_probs [T, B, K] (rows sum to 1).
@@ -70,20 +80,8 @@ class iBOTFrameLoss(nn.Module):
         self.student_temp = student_temp
         self.out_dim = out_dim
 
-    @torch.no_grad()
     def sinkhorn_knopp_teacher(self, teacher_output, teacher_temp, n_iterations=3):
-        Q = torch.exp(teacher_output.float() / teacher_temp).t()
-        K, N = Q.shape
-        if N == 0:
-            return teacher_output
-        Q /= Q.sum()
-        for _ in range(n_iterations):
-            Q /= Q.sum(dim=1, keepdim=True)
-            Q /= K
-            Q /= Q.sum(dim=0, keepdim=True)
-            Q /= N
-        Q *= N
-        return Q.t()
+        return sinkhorn_knopp(teacher_output, teacher_temp, n_iterations)
 
     def forward(self, student_masked, teacher_masked_probs):
         """student_masked [Nmasked, K], teacher_masked_probs [Nmasked, K].

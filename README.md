@@ -2,7 +2,7 @@
 
 **DINO Eats Geometry: Self-Supervised Sign Representations that Absorb Articulated Hand Geometry**
 
-Junyi Hu, Zhewen He, Haomian Huang, Zhenhua Li, Shuaihang Yuan, Zhifei Li, Yi Fang<sup>†</sup>
+Junyi Hu, Zhewen He, Haomian Huang, Zhenhua Li, Zhifei Li, Shuaihang Yuan, Yi Fang<sup>†</sup>
 New York University Abu Dhabi · <sup>†</sup>corresponding author · jh10472@nyu.edu
 
 [**Paper (arXiv)**](https://arxiv.org/abs/2609.06296) · [**Project page**](https://junyi2005.github.io/signDEG/) · [**BibTeX**](#citation)

@@ -5,7 +5,7 @@
 Junyi Hu, Zhewen He, Haomian Huang, Zhenhua Li, Shuaihang Yuan, Zhifei Li, Yi Fang<sup>†</sup>
 New York University Abu Dhabi · <sup>†</sup>corresponding author · jh10472@nyu.edu
 
-[**Paper (arXiv)**](https://arxiv.org/abs/2609.06296) · [**Project page**](https://junyi2005.github.io/signdino/) · [**BibTeX**](#citation)
+[**Paper (arXiv)**](https://arxiv.org/abs/2609.06296) · [**Project page**](https://junyi2005.github.io/signDEG/) · [**BibTeX**](#citation)
 
 ---
 
@@ -70,7 +70,7 @@ Linux with NVIDIA GPUs, Python 3.10, PyTorch 2.6.0 with CUDA 12.4. Pre-training 
 through `torchrun`; any number of GPUs works (the effective batch scales with it).
 
 ```bash
-git clone https://github.com/junyi2005/signdino.git && cd signdino
+git clone https://github.com/junyi2005/signDEG.git && cd signDEG
 conda create -n signdeg python=3.10 -y && conda activate signdeg
 pip install torch==2.6.0 torchvision==0.21.0      # the CUDA 12.4 builds, from the official PyTorch wheel index
 pip install -r requirements.txt
